@@ -22,24 +22,42 @@ Both instances apply firewall rules for redundancy, but only one updates the con
 
 ### Installation (5 minutes)
 
+#### Automatic Installation (Recommended)
+```bash
+# Use the included installer script:
+chmod +x install.sh
+./install.sh
+
+# Or on Windows:
+install.bat
+```
+
+#### Manual Installation
 1. **Connect device** with ADB debugging enabled
 
 2. **Create directories and push files:**
 ```bash
-# Create config directory
+# Create config directory (user accessible)
 adb shell "mkdir -p /sdcard/afw/"
 
-# Push the script
-adb push afw.sh /data/local/afw.sh
-adb shell "chmod 755 /data/local/afw.sh"
+# Create script directory with root
+adb shell "su -c 'mkdir -p /data/local/afw/'"
 
-# Push initial config
+# Push script to temp location first (avoids permission error)
+adb push afw.sh /sdcard/afw/afw.sh.tmp
+
+# Move to final location with root permissions
+adb shell "su -c 'cp /sdcard/afw/afw.sh.tmp /data/local/afw/afw.sh'"
+adb shell "su -c 'chmod 755 /data/local/afw/afw.sh'"
+adb shell "rm /sdcard/afw/afw.sh.tmp"
+
+# Push config file
 adb push uid.txt /sdcard/afw/uid.txt
 ```
 
 3. **Configure AFWall+:**
    - Open AFWall+ → Menu (⋮) → **Set custom script**
-   - Enter exactly: `nohup /data/local/afw.sh > /dev/null 2>&1 &`
+   - Enter exactly: `nohup /data/local/afw/afw.sh > /dev/null 2>&1 &`
    - Tap **OK** to save
 
 4. **Initial run:**
@@ -171,11 +189,22 @@ Enable `debug=1` to see both instances working:
 
 When moving to a new device, UIDs change but package names don't:
 
-1. **Backup** old device: Copy `/sdcard/afw/uid.txt`
-2. **Setup** new device: Complete installation
-3. **Restore** file: Copy uid.txt to new device
+1. **Backup** old device: 
+   ```bash
+   adb pull /sdcard/afw/uid.txt uid_backup.txt
+   ```
+
+2. **Setup** new device: Run `install.sh` or `install.bat`
+
+3. **Restore** file:
+   ```bash
+   adb push uid_backup.txt /sdcard/afw/uid.txt
+   ```
+
 4. **Enable recalculation**: Set line 2 to `recalculate=1`
+
 5. **Apply**: Tap Apply in AFWall+ to refresh all UIDs
+
 6. **Automatic reset**: Script sets `recalculate=0` after completion
 
 ### Troubleshooting
@@ -234,7 +263,7 @@ adb shell "pm list users"
 
 ## ⚠️ Security Considerations
 
-- **Script location**: Keep in `/data/local/` (root-protected)
+- **Script location**: Keep in `/data/local/afw/` (root-protected directory)
 - **Configuration**: Stored in `/sdcard/afw/` for easy editing
 - **Permissions**: Script requires root for iptables access
 - **Validation**: All UIDs verified before use
@@ -301,7 +330,7 @@ com.spotify.music Spotify Music
 
 - **Logs**: Check `logcat` for tag "afwall_custom"
 - **Debug**: Enable `debug=1` for detailed output
-- **Script location**: `/data/local/afw.sh`
+- **Script location**: `/data/local/afw/afw.sh`
 - **Config location**: `/sdcard/afw/uid.txt`
 
 ## 📄 License

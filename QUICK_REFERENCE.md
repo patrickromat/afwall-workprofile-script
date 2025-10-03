@@ -106,7 +106,7 @@ File is auto-sorted by custom names
 
 ## 📁 File Locations
 
-- **Script**: `/data/local/afw.sh`
+- **Script**: `/data/local/afw/afw.sh`
 - **Config**: `/sdcard/afw/uid.txt`
 - **Lock**: `/sdcard/afw/script.lock`
 - **Temp**: `/sdcard/afw/uid.txt.tmp`

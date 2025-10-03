@@ -77,8 +77,14 @@ com.spotify.music Spotify Music
 
 2. **Update script**:
    ```bash
-   adb push afw.sh /data/local/afw.sh
-   adb shell "chmod 755 /data/local/afw.sh"
+   # Method 1: Use installer
+   ./install.sh  # or install.bat on Windows
+   
+   # Method 2: Manual with root
+   adb push afw.sh /sdcard/afw/afw.sh.tmp
+   adb shell "su -c 'cp /sdcard/afw/afw.sh.tmp /data/local/afw/afw.sh'"
+   adb shell "su -c 'chmod 755 /data/local/afw/afw.sh'"
+   adb shell "rm /sdcard/afw/afw.sh.tmp"
    ```
 
 3. **Update config file format**:
@@ -103,8 +109,15 @@ com.spotify.music Spotify Music
 
 2. **Update script**:
    ```bash
-   adb push afw.sh /data/local/afw.sh
-   adb shell "chmod 755 /data/local/afw.sh"
+   # Method 1: Use installer
+   ./install.sh  # or install.bat on Windows
+   
+   # Method 2: Manual with root
+   adb shell "su -c 'mkdir -p /data/local/afw/'"
+   adb push afw.sh /sdcard/afw/afw.sh.tmp
+   adb shell "su -c 'cp /sdcard/afw/afw.sh.tmp /data/local/afw/afw.sh'"
+   adb shell "su -c 'chmod 755 /data/local/afw/afw.sh'"
+   adb shell "rm /sdcard/afw/afw.sh.tmp"
    ```
 
 3. **Update config file**:

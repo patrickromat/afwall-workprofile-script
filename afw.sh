@@ -6,8 +6,9 @@
 # The locking mechanism ensures only one writes to file while both apply rules
 #
 # Installation: 
-#   chmod 755 /data/local/afw.sh
-#   AFWall+ custom script: nohup /data/local/afw.sh > /dev/null 2>&1 &
+#   mkdir -p /data/local/afw/
+#   chmod 755 /data/local/afw/afw.sh
+#   AFWall+ custom script: nohup /data/local/afw/afw.sh > /dev/null 2>&1 &
 #
 # Configuration file: /sdcard/afw/uid.txt
 #   Line 1: debug=0 (or debug=1 for verbose output)
