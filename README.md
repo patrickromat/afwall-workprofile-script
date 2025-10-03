@@ -1,15 +1,6 @@
-# Advanced AFWall+ Work Profile Automation Script v3.1
+# AFWall+ Work Profile Automation Script v1.1
 
-A robust, self-managing script that extends AFWall+ with first-class Work Profile support, intelligent parallel execution handling, and automatic app sorting by custom names.
-
-## 🚨 Critical Understanding: How AFWall+ Executes Scripts
-
-**AFWall+ launches TWO instances of your custom script in parallel!** This is by design and our script handles it intelligently:
-
-- **Instance 1:** Acquires lock → Applies rules → Updates uid.txt file
-- **Instance 2:** Sees lock → Applies rules only → Exits cleanly
-
-Both instances apply firewall rules for redundancy, but only one updates the configuration file. This prevents corruption while ensuring rules are applied quickly.
+A simple, reliable script that extends AFWall+ with Work Profile support and automatic sorting by custom app names.
 
 ## ⚡ Quick Start Guide
 
@@ -18,22 +9,9 @@ Both instances apply firewall rules for redundancy, but only one updates the con
 - **AFWall+ installed** with root granted
 - **Work Profile exists** (via Island, Shelter, or native Dual Apps)
 - **ADB on computer** for initial setup
-- **File manager** on device (X-plore recommended - to create file edit shortcut)
-- **App Manager** installed in work profile to quickly lookup application UID
 
 ### Installation (5 minutes)
 
-#### Automatic Installation (Recommended)
-```bash
-# Use the included installer script:
-chmod +x install.sh
-./install.sh
-
-# Or on Windows:
-install.bat
-```
-
-#### Manual Installation
 1. **Connect device** with ADB debugging enabled
 
 2. **Create directories and push files:**
@@ -44,7 +22,7 @@ adb shell "mkdir -p /sdcard/afw/"
 # Create script directory with root
 adb shell "su -c 'mkdir -p /data/local/afw/'"
 
-# Push script to temp location first (avoids permission error)
+# Push script to temp location first
 adb push afw.sh /sdcard/afw/afw.sh.tmp
 
 # Move to final location with root permissions
@@ -62,8 +40,8 @@ adb push uid.txt /sdcard/afw/uid.txt
    - Tap **OK** to save
 
 4. **Initial run:**
-   - Tap **Apply** in AFWall+ (this triggers both script instances)
-   - Check Android logs for "afwall_custom" tag to verify execution
+   - Tap **Apply** in AFWall+ (this triggers the script)
+   - Check Android logs for "afwall_custom_script" tag to verify
 
 ## 📱 Daily Usage
 
@@ -74,9 +52,7 @@ adb push uid.txt /sdcard/afw/uid.txt
 2. Save the file
 3. **Open AFWall+ and tap Apply**
 
-### Adding Apps - Simple Space-Delimited Format
-
-The v3.1 format uses simple spaces - no fancy delimiters!
+### Adding Apps - Simple Format
 
 #### Method 1: Package Name + Custom Name (Recommended)
 ```
@@ -84,133 +60,63 @@ com.spotify.music Spotify Music Player
 ```
 The script auto-detects the UID and sorts by "Spotify Music Player"
 
-#### Method 2: Just Package Name
-```
-com.spotify.music
-```
-The script auto-generates "Spotify" as the name
-
-#### Method 3: UID + Custom Name
+#### Method 2: UID + Custom Name
 ```
 1010444 My Special App
 ```
-- The script auto-detects the package name
-- You can lookup app UID in App Manager application or any other 
-- **TIP** Work Profile package UIDs start with 1010 - easy to check if you got correct one
+The script auto-detects the package name
 
-#### Method 4: Complete Entry
+#### Method 3: Complete Entry
 ```
 1010444 com.spotify.music Spotify Premium
 ```
 Format: `UID PACKAGE CUSTOM_NAME`
-- First space separates UID from package
-- Second space separates package from custom name
-- Everything after the second space is the custom name
+Everything after the package name is the custom name
 
-### Using X-plore File Manager
+## 🎯 What's New in Version 1.1
 
-**One-tap editing setup:**
-1. Navigate to `/sdcard/afw/`
-2. Long-press `uid.txt`
-3. Select **Create Shortcut** for homescreen access
-4. Edit anytime: Long-press → **Edit Text**
+### Automatic Sorting by Custom Name
+- Apps are **automatically sorted alphabetically** by your custom names
+- Case-insensitive sorting (A=a, B=b, etc.)
+- Happens every time the script runs
+- No configuration needed - it just works!
 
-## 🎯 New in Version 3.1
+### Example
+**Before sorting:**
+```
+com.zzz.app Zebra App
+com.aaa.app Apple App  
+com.mmm.app Mango App
+```
 
-### Space-Based Delimiters (Performance Fix)
-- **Removed internal fancy delimiter** (§ symbol)
-- **Simple space parsing** for better performance
-- **6x faster parsing** - fixed performance regression
-- **Extensive debug logging** to track execution time
-
-### Debug Improvements
-- **Millisecond-precision timing** for all phases
-- **Per-operation logging** shows exact bottlenecks
-- **PM command timing** tracks package manager calls
-- **Phase-by-phase breakdown** in debug mode
-
-### What Changed from v3.0
-- Replaced `§` delimiter with triple-space internally
-- Fixed slow parsing that caused 6x performance degradation
-- Added extensive timing logs for debugging
-- Simplified field extraction using awk
+**After sorting (automatic):**
+```
+com.aaa.app Apple App
+com.mmm.app Mango App
+com.zzz.app Zebra App
+```
 
 ## 🔧 Configuration File Structure
 
 ### /sdcard/afw/uid.txt Format
 ```
-debug=0                          # Production mode
-recalculate=0                    # Normal operation
-sort_by=custom                   # Sort by custom names
+debug=0                          # Line 1: Production mode
+recalculate=0                    # Line 2: Normal operation
 
-# Your apps - simple space format!
+# Your apps (will be auto-sorted)
+com.spotify.music Spotify Music
 com.android.chrome Chrome Browser
 com.whatsapp WhatsApp Messenger
-com.spotify.music Spotify Music Player
-1010150 Auto-Detected App Name
 ```
 
 ### Configuration Options
 
 | Line | Setting | Values | Description |
 |------|---------|--------|-------------|
-| 1 | `debug` | `0` or `1` | Enable verbose logging with timing |
+| 1 | `debug` | `0` or `1` | Enable verbose logging |
 | 2 | `recalculate` | `0` or `1` | Force UID refresh (for migrations) |
-| 3 | `sort_by` | `custom`, `package`, `uid` | Automatic sorting method |
-
-### Entry Format Rules
-```
-PACKAGE_NAME CUSTOM_NAME           # Auto-detects UID
-UID CUSTOM_NAME                    # Auto-detects package
-UID PACKAGE_NAME CUSTOM_NAME       # Full entry
-```
-
-**Important:**
-- First space: separates UID from package (or package from name if no UID)
-- Second space: separates package from custom name
-- Everything after second space: custom name (can contain spaces!)
-
-## 🔄 Understanding Script Execution
-
-### When Scripts Run
-1. **User taps Apply** in AFWall+
-2. **AFWall+ launches TWO script instances** simultaneously
-3. **First instance** gets lock, both apply rules
-4. **Only lock holder** updates uid.txt
-5. **Both instances** complete successfully
-
-### Debug Mode Insight
-Enable `debug=1` to see detailed timing information:
-```
-[PHASE1] Starting file parse...
-[PARSE] Line 4: com.spotify.music Spotify Music
-[PARSE] Extracted - UID:[] PKG:[com.spotify.music] NAME:[Spotify Music]
-[PHASE1] Parse complete. Time: 45 ms
-[PHASE2] Starting data augmentation...
-[AUGMENT] Looking up UID for package: com.spotify.music
-[AUGMENT] PM call took 234 ms
-[AUGMENT] Found UID: 1010444
-[PHASE2] Augmentation complete. Time: 245 ms
-...
-[SUMMARY]
-- Total execution time: 523 ms
-```
-
-This helps identify performance bottlenecks!
 
 ## 🚀 Advanced Usage
-
-### Performance Troubleshooting
-
-If script runs slow, enable debug mode to see timing:
-
-1. Edit `/sdcard/afw/uid.txt` line 1: `debug=1`
-2. Run script via AFWall+ Apply
-3. Check output: `adb shell "logcat -d | grep -A 100 INSTANCE"`
-4. Look for slow phases:
-   - **Phase 2** slow? Too many missing UIDs (add them manually)
-   - **Phase 3** slow? Recalculate mode enabled (should auto-disable)
-   - **Sort** slow? Too many entries (sorting is O(n log n))
 
 ### Device Migration
 
@@ -221,7 +127,7 @@ When moving to a new device, UIDs change but package names don't:
    adb pull /sdcard/afw/uid.txt uid_backup.txt
    ```
 
-2. **Setup** new device: Run `install.sh` or `install.bat`
+2. **Setup** new device: Install script
 
 3. **Restore** file:
    ```bash
@@ -240,21 +146,6 @@ When moving to a new device, UIDs change but package names don't:
 - Did you tap Apply in AFWall+? (Required!)
 - Check logs: `adb shell "logcat -d | grep afwall_custom"`
 
-**Script runs too slow:**
-- Enable debug=1 to see timing breakdown
-- Check Phase 2 timing - if >2 seconds, add UIDs manually
-- Ensure recalculate=0 in normal use
-
-**Duplicate firewall rules:**
-- Normal behavior - AFWall+ manages rule deduplication
-- Both script instances apply rules by design
-
-**Lock errors in logs:**
-```bash
-# Remove stale lock if needed:
-adb shell "rm -rf /sdcard/afw/script.lock"
-```
-
 **Apps not blocked/allowed:**
 ```bash
 # Enable debug mode:
@@ -268,38 +159,28 @@ adb shell "pm list users"
 # Should show: UserInfo{10:Work Profile:30}
 ```
 
-## 📊 Technical Architecture
+## 📊 Technical Details
 
-### Execution Phases
-1. **Lock Acquisition** - Atomic mkdir operation
-2. **Configuration Parse** - Read uid.txt into memory
-3. **Data Augmentation** - Query missing UIDs/packages via `pm`
-4. **Recalculation** - Refresh UIDs if migration mode enabled
-5. **Sorting** - Order entries by chosen method (default: custom names)
-6. **Rule Application** - Insert iptables rules (both instances)
-7. **File Update** - Write sorted, complete data (lock holder only)
+### How It Works
+1. **Parse** uid.txt into memory
+2. **Augment** missing UIDs/packages via `pm` command
+3. **Recalculate** UIDs if migration mode enabled
+4. **Sort** entries alphabetically by custom name
+5. **Apply** iptables rules for all UIDs
+6. **Write** sorted, complete data back to file
 
 ### Safety Features
+- **File locking** prevents concurrent writes
 - **Atomic operations** prevent partial writes
-- **PID tracking** validates lock ownership
-- **Timeout handling** cleans stale locks
 - **UID validation** prevents invalid iptables commands
-- **Simple space delimiter** for reliable parsing
-
-### Performance Optimizations
-- Rules applied before file I/O
-- Parallel execution for redundancy
-- In-memory processing
-- Efficient awk-based parsing
-- Minimal pm command calls
+- **Silent operation** in production mode
 
 ## ⚠️ Security Considerations
 
-- **Script location**: Keep in `/data/local/afw/` (root-protected directory)
+- **Script location**: Keep in `/data/local/afw/` (root-protected)
 - **Configuration**: Stored in `/sdcard/afw/` for easy editing
 - **Permissions**: Script requires root for iptables access
 - **Validation**: All UIDs verified before use
-- **Logging**: Production mode minimizes log output
 
 ## 📝 Example Configurations
 
@@ -307,7 +188,6 @@ adb shell "pm list users"
 ```
 debug=0
 recalculate=0
-sort_by=custom
 com.android.chrome Chrome
 com.spotify.music Spotify
 ```
@@ -316,73 +196,56 @@ com.spotify.music Spotify
 ```
 debug=0
 recalculate=0
-sort_by=custom
 
-# Browsers
-1010201 com.android.chrome Chrome Browser
-1010202 com.microsoft.emmx Microsoft Edge Browser
-
-# Communication  
+# Apps (will be sorted automatically)
+com.android.chrome Chrome Browser
 com.whatsapp WhatsApp Messenger
-org.telegram.messenger Telegram Chat
-
-# Work Apps
+com.spotify.music Spotify Music
 com.slack Slack for Work
-com.zoom.videomeetings Zoom Video Meetings
+com.zoom.videomeetings Zoom
 ```
 
-### Debug Mode (Performance Analysis)
+### Debug Mode
 ```
 debug=1
 recalculate=0
-sort_by=custom
-# Your apps with custom names
-com.android.chrome Chrome Browser
-com.spotify.music Spotify Premium
+com.android.chrome Chrome
+com.spotify.music Spotify
 ```
 
 ### Migration Mode
 ```
 debug=0
 recalculate=1
-sort_by=custom
-# Your apps with custom names
-com.android.chrome Chrome Browser
-com.spotify.music Spotify Premium
+com.android.chrome Chrome
+com.spotify.music Spotify
 ```
 
-## 🆚 Version Comparison
+## 🆚 Version History
 
-### What's Changed from v3.0 to v3.1
-- **Fixed 6x performance regression** caused by fancy delimiter
-- **Replaced § with simple spaces** (3 spaces internally)
-- **Added extensive timing logs** for debugging
-- **Improved awk-based parsing** for efficiency
-- **Better debug output** with millisecond precision
+### Version 1.1 (Current)
+- **NEW**: Automatic sorting by custom name
+- Alphabetical, case-insensitive sorting
+- No configuration needed
+- Compatible with all v1.0 configs
 
-### Format Remains the Same
-```
-# v3.0 and v3.1 both use:
-com.spotify.music Spotify Music
-```
+### Version 1.0
+- Basic Work Profile support (user 10)
+- Dynamic UID/package name resolution
+- Debug and recalculate modes
+- File locking mechanism
+- IPv4 and IPv6 support
 
 ## 🤝 Support
 
-- **Logs**: Check `logcat` for tag "afwall_custom"
-- **Debug**: Enable `debug=1` for detailed timing output
+- **Logs**: Check `logcat` for tag "afwall_custom_script"
+- **Debug**: Enable `debug=1` for detailed output
 - **Script location**: `/data/local/afw/afw.sh`
 - **Config location**: `/sdcard/afw/uid.txt`
-- **Performance**: Use debug mode to identify bottlenecks
 
 ## 📄 License
 
 This project is released under the MIT License. Use, modify, and distribute freely.
 
-## 🙏 Acknowledgments
-
-- AFWall+ developers for the excellent firewall
-- Android community for Work Profile management tools
-- Contributors and testers
-
 ---
-*Version 3.1 - Performance fixed, extensive debug logging, simple space delimiters*
+*Version 1.1 - Automatic sorting by custom name*

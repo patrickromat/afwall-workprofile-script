@@ -1,30 +1,25 @@
 debug=0
 recalculate=0
-sort_by=custom
 # ============================================
-# AFWall+ Work Profile App List v3.0
+# AFWall+ Work Profile App List v1.1
 # ============================================
 # IMPORTANT: You MUST tap "Apply" in AFWall+ after editing this file!
 # The script only runs when AFWall+ triggers it.
 #
-# Configuration (lines 1-3):
+# Configuration (lines 1-2):
 #   debug=0|1         : Enable verbose logging
 #   recalculate=0|1   : Force refresh all UIDs (for migrations)
-#   sort_by=custom|package|uid : Automatic sorting method
 #
-# Entry formats (lines 4+):
-#   package.name                    Package only (UID auto-detected)
-#   package.name Custom App Name   Package + custom name
-#   1010XXX                        UID only (package auto-detected)  
-#   1010XXX Custom App Name        UID + custom name
-#   1010XXX package.name           Both specified
-#   1010XXX package.name My App    Full entry with custom name
+# Entry formats (lines 3+):
+#   package.name Custom Name       Package + custom name
+#   1010XXX Custom Name            UID + custom name
+#   1010XXX package.name Custom    Full entry with custom name
 #
 # The script will:
 # 1. Auto-detect missing UIDs or package names
-# 2. Sort entries by your chosen method (default: custom name)
+# 2. Sort entries alphabetically by custom name
 # 3. Rewrite this file with complete information
-# 4. Apply firewall rules for both script instances
+# 4. Apply firewall rules
 # ============================================
 
 # --- Web Browsers ---
@@ -65,39 +60,14 @@ io.github.muntashirakon.AppManager App Manager
 com.mixplorer.silver MiXplorer File Manager
 de.robv.android.xposed.installer Xposed Framework
 
-# --- Banking & Finance ---
-# SECURITY NOTE: Consider if you want banking apps to have network access
-# com.yourbank.app Your Bank App
-# com.paypal.android PayPal
-# com.coinbase.android Coinbase
-
-# --- Work-Specific Apps ---
-# Add your company apps here
-# com.company.app Company Portal
-# com.company.vpn Corporate VPN
-# com.zoom.videomeetings Zoom Meetings
-# com.microsoft.teams Microsoft Teams
-
-# --- Social Media ---
-# com.instagram.android Instagram
-# com.twitter.android Twitter/X
-# com.facebook.katana Facebook
-# com.linkedin.android LinkedIn
-
-# --- Games (if needed in work profile) ---
-# com.supercell.clashofclans Clash of Clans
-# com.king.candycrushsaga Candy Crush Saga
-# com.mojang.minecraftpe Minecraft
-
 # ============================================
 # NOTES:
 # - Apps are BLOCKED by default in AFWall+
 # - Apps listed here will be ALLOWED network access
 # - After editing, you MUST tap Apply in AFWall+
-# - The file will be auto-sorted based on sort_by setting
-# - Custom names are everything after package/UID
-# - No need for # symbols - just write the name
-# - Enable debug=1 to see both script instances working
+# - File will be auto-sorted alphabetically by custom name
+# - Custom names: everything after package/UID
+# - Enable debug=1 to see detailed execution info
 # - Set recalculate=1 when migrating to new device
 #
 # TROUBLESHOOTING:
