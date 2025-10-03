@@ -1,4 +1,4 @@
-# Advanced AFWall+ Work Profile Automation Script v3.0
+# Advanced AFWall+ Work Profile Automation Script v3.1
 
 A robust, self-managing script that extends AFWall+ with first-class Work Profile support, intelligent parallel execution handling, and automatic app sorting by custom names.
 
@@ -73,9 +73,9 @@ adb push uid.txt /sdcard/afw/uid.txt
 2. Save the file
 3. **Open AFWall+ and tap Apply**
 
-### Adding Apps - Simple Format
+### Adding Apps - Simple Space-Delimited Format
 
-The v3.0 format is simpler - no hash symbols needed for custom names!
+The v3.1 format uses simple spaces - no fancy delimiters!
 
 #### Method 1: Package Name + Custom Name (Recommended)
 ```
@@ -99,7 +99,10 @@ The script auto-detects the package name
 ```
 1010444 com.spotify.music Spotify Premium
 ```
-Everything after the package is treated as the custom name
+Format: `UID PACKAGE CUSTOM_NAME`
+- First space separates UID from package
+- Second space separates package from custom name
+- Everything after the second space is the custom name
 
 ### Using X-plore File Manager
 
@@ -109,31 +112,25 @@ Everything after the package is treated as the custom name
 3. Select **Create Shortcut** for homescreen access
 4. Edit anytime: Long-press → **Edit Text**
 
-## 🎯 New in Version 3.0
+## 🎯 New in Version 3.1
 
-### Simplified Custom Names
-- **No more hash symbols** - just write the name directly
-- **Everything after package/UID** is the custom name
-- **Clean, readable format** without comment syntax
-- **Natural sorting** by your custom names
+### Space-Based Delimiters (Performance Fix)
+- **Removed internal fancy delimiter** (§ symbol)
+- **Simple space parsing** for better performance
+- **6x faster parsing** - fixed performance regression
+- **Extensive debug logging** to track execution time
 
-### Automatic Sorting Options
-Your apps are automatically sorted by:
-- **custom** (default): Alphabetical by your custom names
-- **package**: Alphabetical by package name  
-- **uid**: Numerical by UID value
+### Debug Improvements
+- **Millisecond-precision timing** for all phases
+- **Per-operation logging** shows exact bottlenecks
+- **PM command timing** tracks package manager calls
+- **Phase-by-phase breakdown** in debug mode
 
-Change sorting in uid.txt line 3:
-```
-sort_by=custom    # Default - sorts by your custom names
-```
-
-### Enhanced Features (from v2.0)
-- **Smart parallel handling**: Both AFWall+ instances work together
-- **Stale lock cleanup**: Auto-removes dead locks after 5 minutes
-- **PID validation**: Verifies lock owner is still running
-- **UID validation**: Only valid numeric UIDs are used
-- **Safe delimiter**: Uses `§` internally to avoid conflicts
+### What Changed from v3.0
+- Replaced `§` delimiter with triple-space internally
+- Fixed slow parsing that caused 6x performance degradation
+- Added extensive timing logs for debugging
+- Simplified field extraction using awk
 
 ## 🔧 Configuration File Structure
 
@@ -143,7 +140,7 @@ debug=0                          # Production mode
 recalculate=0                    # Normal operation
 sort_by=custom                   # Sort by custom names
 
-# Your apps (no # needed for names!)
+# Your apps - simple space format!
 com.android.chrome Chrome Browser
 com.whatsapp WhatsApp Messenger
 com.spotify.music Spotify Music Player
@@ -154,9 +151,21 @@ com.spotify.music Spotify Music Player
 
 | Line | Setting | Values | Description |
 |------|---------|--------|-------------|
-| 1 | `debug` | `0` or `1` | Enable verbose logging |
+| 1 | `debug` | `0` or `1` | Enable verbose logging with timing |
 | 2 | `recalculate` | `0` or `1` | Force UID refresh (for migrations) |
 | 3 | `sort_by` | `custom`, `package`, `uid` | Automatic sorting method |
+
+### Entry Format Rules
+```
+PACKAGE_NAME CUSTOM_NAME           # Auto-detects UID
+UID CUSTOM_NAME                    # Auto-detects package
+UID PACKAGE_NAME CUSTOM_NAME       # Full entry
+```
+
+**Important:**
+- First space: separates UID from package (or package from name if no UID)
+- Second space: separates package from custom name
+- Everything after second space: custom name (can contain spaces!)
 
 ## 🔄 Understanding Script Execution
 
@@ -167,23 +176,38 @@ com.spotify.music Spotify Music Player
 4. **Only lock holder** updates uid.txt
 5. **Both instances** complete successfully
 
-### Why Two Instances?
-AFWall+ uses parallel execution for redundancy. Our script handles this elegantly:
-- No conflicts or corruption
-- Faster rule application
-- Automatic coordination via locking
-
 ### Debug Mode Insight
-Enable `debug=1` to see both instances working:
+Enable `debug=1` to see detailed timing information:
 ```
-[INSTANCE] PID: 12345
-[LOCK] Lock acquired. This instance (12345) will write to file.
+[PHASE1] Starting file parse...
+[PARSE] Line 4: com.spotify.music Spotify Music
+[PARSE] Extracted - UID:[] PKG:[com.spotify.music] NAME:[Spotify Music]
+[PHASE1] Parse complete. Time: 45 ms
+[PHASE2] Starting data augmentation...
+[AUGMENT] Looking up UID for package: com.spotify.music
+[AUGMENT] PM call took 234 ms
+[AUGMENT] Found UID: 1010444
+[PHASE2] Augmentation complete. Time: 245 ms
 ...
-[INSTANCE] PID: 12346  
-[LOCK-INFO] Another instance (12345) holds the lock. This instance will only apply rules.
+[SUMMARY]
+- Total execution time: 523 ms
 ```
+
+This helps identify performance bottlenecks!
 
 ## 🚀 Advanced Usage
+
+### Performance Troubleshooting
+
+If script runs slow, enable debug mode to see timing:
+
+1. Edit `/sdcard/afw/uid.txt` line 1: `debug=1`
+2. Run script via AFWall+ Apply
+3. Check output: `adb shell "logcat -d | grep -A 100 INSTANCE"`
+4. Look for slow phases:
+   - **Phase 2** slow? Too many missing UIDs (add them manually)
+   - **Phase 3** slow? Recalculate mode enabled (should auto-disable)
+   - **Sort** slow? Too many entries (sorting is O(n log n))
 
 ### Device Migration
 
@@ -212,6 +236,11 @@ When moving to a new device, UIDs change but package names don't:
 **Nothing happens after editing uid.txt:**
 - Did you tap Apply in AFWall+? (Required!)
 - Check logs: `adb shell "logcat -d | grep afwall_custom"`
+
+**Script runs too slow:**
+- Enable debug=1 to see timing breakdown
+- Check Phase 2 timing - if >2 seconds, add UIDs manually
+- Ensure recalculate=0 in normal use
 
 **Duplicate firewall rules:**
 - Normal behavior - AFWall+ manages rule deduplication
@@ -252,13 +281,13 @@ adb shell "pm list users"
 - **PID tracking** validates lock ownership
 - **Timeout handling** cleans stale locks
 - **UID validation** prevents invalid iptables commands
-- **Safe delimiter** (`§`) avoids parsing conflicts
+- **Simple space delimiter** for reliable parsing
 
 ### Performance Optimizations
 - Rules applied before file I/O
 - Parallel execution for redundancy
 - In-memory processing
-- Single-pass sorting
+- Efficient awk-based parsing
 - Minimal pm command calls
 
 ## ⚠️ Security Considerations
@@ -286,7 +315,7 @@ debug=0
 recalculate=0
 sort_by=custom
 
-# Browsers (comment lines still work with #)
+# Browsers
 1010201 com.android.chrome Chrome Browser
 1010202 com.microsoft.emmx Microsoft Edge Browser
 
@@ -297,6 +326,16 @@ org.telegram.messenger Telegram Chat
 # Work Apps
 com.slack Slack for Work
 com.zoom.videomeetings Zoom Video Meetings
+```
+
+### Debug Mode (Performance Analysis)
+```
+debug=1
+recalculate=0
+sort_by=custom
+# Your apps with custom names
+com.android.chrome Chrome Browser
+com.spotify.music Spotify Premium
 ```
 
 ### Migration Mode
@@ -311,27 +350,26 @@ com.spotify.music Spotify Premium
 
 ## 🆚 Version Comparison
 
-### What's Changed from v2.0 to v3.0
-- **Removed hash symbols** from custom names
-- **Direct string format** for names (cleaner, more intuitive)
-- **Default sort changed** from `name` to `custom`
-- **Simplified parsing** - everything after package/UID is the name
+### What's Changed from v3.0 to v3.1
+- **Fixed 6x performance regression** caused by fancy delimiter
+- **Replaced § with simple spaces** (3 spaces internally)
+- **Added extensive timing logs** for debugging
+- **Improved awk-based parsing** for efficiency
+- **Better debug output** with millisecond precision
 
-### Example Format Comparison
+### Format Remains the Same
 ```
-# v2.0 format:
-com.spotify.music # Spotify Music
-
-# v3.0 format:
+# v3.0 and v3.1 both use:
 com.spotify.music Spotify Music
 ```
 
 ## 🤝 Support
 
 - **Logs**: Check `logcat` for tag "afwall_custom"
-- **Debug**: Enable `debug=1` for detailed output
+- **Debug**: Enable `debug=1` for detailed timing output
 - **Script location**: `/data/local/afw/afw.sh`
 - **Config location**: `/sdcard/afw/uid.txt`
+- **Performance**: Use debug mode to identify bottlenecks
 
 ## 📄 License
 
@@ -344,4 +382,4 @@ This project is released under the MIT License. Use, modify, and distribute free
 - Contributors and testers
 
 ---
-*Version 3.0 - Simplified custom names, cleaner format, better user experience*
+*Version 3.1 - Performance fixed, extensive debug logging, simple space delimiters*

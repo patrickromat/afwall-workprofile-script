@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-# AFWall+ Work Profile Automation Script v3.0
+# AFWall+ Work Profile Automation Script v3.1
 # ============================================
 # IMPORTANT: AFWall+ launches TWO instances of this script in parallel
 # The locking mechanism ensures only one writes to file while both apply rules
@@ -23,7 +23,6 @@ UID_FILE="/sdcard/afw/uid.txt"
 TEMP_FILE="/sdcard/afw/uid.txt.tmp"
 LOCK_DIR="/sdcard/afw/script.lock"
 TARGET_USER="10"                   # Work Profile user ID
-DELIMITER='§'                      # Safe delimiter (won't conflict with package names)
 LOCK_TIMEOUT=300                   # Seconds before considering lock stale
 LOCK_CHECK_FILE="$LOCK_DIR/pid"    # PID file for lock validation
 
@@ -32,6 +31,16 @@ RUN_PARALLEL=true                  # Allow both instances to apply rules
 TARGET_CHAINS="afwall-wifi-wan afwall-3g-home afwall-vpn afwall-3g-roam"
 
 # --- SCRIPT START ---
+
+# Timing helper functions
+get_time_ms() {
+    # Get time in milliseconds (using date if available, else seconds)
+    if date +%s%N >/dev/null 2>&1; then
+        echo $(($(date +%s%N) / 1000000))
+    else
+        echo $(($(date +%s) * 1000))
+    fi
+}
 
 # Function to check if a process is still running
 is_process_running() {
@@ -71,9 +80,10 @@ is_valid_uid() {
 # Clean up any stale locks first
 cleanup_stale_lock
 
-# Start total timer only if in debug mode (check before file exists validation)
+# Start total timer (only read debug flag if file exists)
 if [ -f "$UID_FILE" ] && [ "$(head -n 1 "$UID_FILE" 2>/dev/null | cut -d'=' -f2)" = "1" ]; then
-    total_start_time=$(date +%s%N)
+    total_start_time=$(get_time_ms)
+    log_parse_start=$(get_time_ms)
 fi
 
 # --- PHASE 0: ATOMIC LOCK ACQUISITION ---
@@ -140,75 +150,115 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
 fi
 
 # --- PHASE 1: PARSE CONFIG FILE INTO MEMORY ---
-[ "$DEBUG_MODE" -eq 1 ] && phase1_start_time=$(date +%s%N)
+phase1_start_time=$(get_time_ms)
 accumulated_data=""
 line_counter=0
 config_line_count=3  # Skip first 3 config lines
 
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE1] Starting file parse..."
+
 while IFS= read -r line || [ -n "$line" ]; do
     line_counter=$((line_counter + 1))
     if [ "$line_counter" -le "$config_line_count" ]; then continue; fi
+    
     # Skip empty lines and pure comment lines
-    if [ -z "$line" ] || [ "$(echo "$line" | grep -c '^[[:space:]]*#')" -eq 1 ]; then continue; fi
+    [ -z "$line" ] && continue
+    [ "$(echo "$line" | grep -c '^[[:space:]]*#')" -eq 1 ] && continue
     
-    # Parse the line - everything after package/UID is the custom name
-    item1=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]].*//')
-    rest_of_line=$(echo "$line" | sed "s/^[[:space:]]*$item1[[:space:]]*//")
+    # Trim leading whitespace
+    line=$(echo "$line" | sed 's/^[[:space:]]*//')
     
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[PARSE] Line $line_counter: $line"
+    
+    # Parse: first field is UID or package, second is package (if first was UID), rest is custom name
     uid=""; package_name=""; custom_name=""
     
-    # Check if item1 is a UID (all digits)
-    if [ -z "$(echo "$item1" | tr -d '0-9')" ] && [ -n "$item1" ]; then
-        uid="$item1"
-        # Check if next item is a package name
-        item2=$(echo "$rest_of_line" | sed 's/^[[:space:]]*//;s/[[:space:]].*//')
-        if [ -n "$item2" ] && echo "$item2" | grep -q "\."; then
-            package_name="$item2"
-            # Everything after package is the custom name
-            custom_name=$(echo "$rest_of_line" | sed "s/^[[:space:]]*$item2[[:space:]]*//")
+    # Get first field
+    field1=$(echo "$line" | awk '{print $1}')
+    
+    # Check if first field is a UID (all digits)
+    if [ -n "$field1" ] && [ -z "$(echo "$field1" | tr -d '0-9')" ]; then
+        uid="$field1"
+        # Get second field (might be package)
+        field2=$(echo "$line" | awk '{print $2}')
+        if [ -n "$field2" ] && echo "$field2" | grep -q '\.'; then
+            package_name="$field2"
+            # Everything after second field is custom name
+            custom_name=$(echo "$line" | cut -d' ' -f3-)
         else
-            # Everything after UID is the custom name
-            custom_name="$rest_of_line"
+            # Second field is part of custom name
+            custom_name=$(echo "$line" | cut -d' ' -f2-)
         fi
-    elif echo "$item1" | grep -q "\."; then
-        # First item is a package name
-        package_name="$item1"
-        # Everything after is the custom name
-        custom_name="$rest_of_line"
+    elif [ -n "$field1" ] && echo "$field1" | grep -q '\.'; then
+        # First field is package name
+        package_name="$field1"
+        # Everything after first field is custom name
+        custom_name=$(echo "$line" | cut -d' ' -f2-)
     else
+        [ "$DEBUG_MODE" -eq 1 ] && echo "[PARSE] Skipped invalid line: $line"
         continue
     fi
     
-    # Clean up custom name - just trim whitespace, no comment removal
+    # Trim whitespace from custom name
     custom_name=$(echo "$custom_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     
-    record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[PARSE] Extracted - UID:[$uid] PKG:[$package_name] NAME:[$custom_name]"
+    
+    # Store with simple space delimiter (3 spaces to avoid conflicts)
+    record="$uid   $package_name   $custom_name"
     accumulated_data="$accumulated_data$record
 "
 done < "$UID_FILE"
-[ "$DEBUG_MODE" -eq 1 ] && phase1_end_time=$(date +%s%N)
+
+phase1_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE1] Parse complete. Time: $((phase1_end_time - phase1_start_time)) ms"
 
 # --- PHASE 2: AUGMENT IN-MEMORY DATA (FILL BLANKS) ---
-[ "$DEBUG_MODE" -eq 1 ] && phase2_start_time=$(date +%s%N)
+phase2_start_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE2] Starting data augmentation..."
+
 completed_data=""
-while IFS= read -r record; do
-    if [ -z "$record" ]; then continue; fi
-    uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
-    package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-    custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+record_count=0
+
+echo "$accumulated_data" | while IFS= read -r record; do
+    [ -z "$record" ] && continue
+    record_count=$((record_count + 1))
+    
+    # Parse using 3-space delimiter
+    uid=$(echo "$record" | awk -F'   ' '{print $1}')
+    package_name=$(echo "$record" | awk -F'   ' '{print $2}')
+    custom_name=$(echo "$record" | awk -F'   ' '{print $3}')
+    
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Record $record_count - UID:[$uid] PKG:[$package_name] NAME:[$custom_name]"
+    
+    pm_call_made=false
     
     if [ -z "$uid" ] && [ -n "$package_name" ]; then
         # Try to get UID from package name
+        [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Looking up UID for package: $package_name"
+        pm_start=$(get_time_ms)
         output=$(pm list packages --user "$TARGET_USER" -U 2>/dev/null | grep -w "$package_name")
+        pm_end=$(get_time_ms)
+        pm_call_made=true
+        [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] PM call took $((pm_end - pm_start)) ms"
+        
         if [ -n "$output" ]; then
-            uid=$(echo "$output" | sed 's/.*uid://' | cut -d' ' -f1)
+            uid=$(echo "$output" | sed 's/.*uid://' | awk '{print $1}')
+            [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Found UID: $uid"
         fi
     elif [ -n "$uid" ] && [ -z "$package_name" ]; then
         # Try to get package name from UID
         if is_valid_uid "$uid"; then
+            [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Looking up package for UID: $uid"
+            pm_start=$(get_time_ms)
             output=$(pm list packages --user "$TARGET_USER" --uid "$uid" 2>/dev/null)
+            pm_end=$(get_time_ms)
+            pm_call_made=true
+            [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] PM call took $((pm_end - pm_start)) ms"
+            
             if [ -n "$output" ]; then
-                package_name=$(echo "$output" | head -n1 | sed 's/package://' | cut -d' ' -f1)
+                package_name=$(echo "$output" | head -n1 | sed 's/package://' | awk '{print $1}')
+                [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Found package: $package_name"
             fi
         fi
     fi
@@ -216,74 +266,105 @@ while IFS= read -r record; do
     # Generate a default custom name if empty
     if [ -z "$custom_name" ] && [ -n "$package_name" ]; then
         # Extract app name from package (last component)
-        app_name=$(echo "$package_name" | rev | cut -d'.' -f1 | rev)
+        app_name=$(echo "$package_name" | awk -F'.' '{print $NF}')
         # Capitalize first letter
-        custom_name=$(echo "$app_name" | sed 's/^./\U&/')
+        custom_name=$(echo "$app_name" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+        [ "$DEBUG_MODE" -eq 1 ] && echo "[AUGMENT] Generated custom name: $custom_name"
     fi
     
-    new_record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
+    new_record="$uid   $package_name   $custom_name"
     completed_data="$completed_data$new_record
 "
-done <<< "$accumulated_data"
-[ "$DEBUG_MODE" -eq 1 ] && phase2_end_time=$(date +%s%N)
+done > /tmp/augmented_data.$$
+
+completed_data=$(cat /tmp/augmented_data.$$ 2>/dev/null)
+rm -f /tmp/augmented_data.$$
+
+phase2_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE2] Augmentation complete. Time: $((phase2_end_time - phase2_start_time)) ms"
 
 # --- PHASE 3: RECALCULATE MODULE (if enabled) ---
-[ "$DEBUG_MODE" -eq 1 ] && phase3_start_time=$(date +%s%N)
+phase3_start_time=$(get_time_ms)
+
 if [ "$RECALCULATE_MODE" -eq 1 ]; then
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE3] Starting UID recalculation..."
+    
     recalculated_data=""
-    while IFS= read -r record; do
-        if [ -z "$record" ]; then continue; fi
-        uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
-        package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+    record_count=0
+    
+    echo "$completed_data" | while IFS= read -r record; do
+        [ -z "$record" ] && continue
+        record_count=$((record_count + 1))
+        
+        uid=$(echo "$record" | awk -F'   ' '{print $1}')
+        package_name=$(echo "$record" | awk -F'   ' '{print $2}')
+        custom_name=$(echo "$record" | awk -F'   ' '{print $3}')
+        
+        [ "$DEBUG_MODE" -eq 1 ] && echo "[RECALC] Record $record_count - Package: $package_name"
         
         if [ -n "$package_name" ]; then
+            pm_start=$(get_time_ms)
             output=$(pm list packages --user "$TARGET_USER" -U 2>/dev/null | grep -w "$package_name")
+            pm_end=$(get_time_ms)
+            [ "$DEBUG_MODE" -eq 1 ] && echo "[RECALC] PM call took $((pm_end - pm_start)) ms"
+            
             if [ -n "$output" ]; then
-                new_uid=$(echo "$output" | sed 's/.*uid://' | cut -d' ' -f1)
+                new_uid=$(echo "$output" | sed 's/.*uid://' | awk '{print $1}')
                 if is_valid_uid "$new_uid"; then
+                    [ "$DEBUG_MODE" -eq 1 ] && echo "[RECALC] Updated UID from $uid to $new_uid"
                     uid="$new_uid"
                 fi
             fi
         fi
-        new_record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
+        
+        new_record="$uid   $package_name   $custom_name"
         recalculated_data="$recalculated_data$new_record
 "
-    done <<< "$completed_data"
-    completed_data="$recalculated_data"
+    done > /tmp/recalc_data.$$
+    
+    completed_data=$(cat /tmp/recalc_data.$$ 2>/dev/null)
+    rm -f /tmp/recalc_data.$$
 fi
-[ "$DEBUG_MODE" -eq 1 ] && phase3_end_time=$(date +%s%N)
+
+phase3_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && [ "$RECALCULATE_MODE" -eq 1 ] && echo "[PHASE3] Recalculation complete. Time: $((phase3_end_time - phase3_start_time)) ms"
 
 # --- PHASE 3.5: SORT DATA ---
-[ "$DEBUG_MODE" -eq 1 ] && sort_start_time=$(date +%s%N)
+sort_start_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[SORT] Sorting by: $SORT_MODE"
+
 if [ -n "$completed_data" ]; then
     case "$SORT_MODE" in
         uid)
-            # Sort by UID numerically
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k1,1 -n)
+            # Sort by UID numerically (field 1)
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t ' ' -k1,1 -n)
             ;;
         package)
-            # Sort by package name alphabetically  
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k2,2)
+            # Sort by package name alphabetically (field 2)
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | awk -F'   ' '{print $2 "   " $0}' | sort | awk -F'   ' '{$1=""; sub(/^   /, ""); print}')
             ;;
         custom|*)
-            # Sort by custom name alphabetically (default)
-            # Use case-insensitive sort for better results
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k3,3 -f)
+            # Sort by custom name alphabetically (field 3)
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | awk -F'   ' '{print $3 "   " $0}' | sort -f | awk -F'   ' '{$1=""; sub(/^   /, ""); print}')
             ;;
     esac
     completed_data="$sorted_data
 "
 fi
-[ "$DEBUG_MODE" -eq 1 ] && sort_end_time=$(date +%s%N)
+
+sort_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[SORT] Sorting complete. Time: $((sort_end_time - sort_start_time)) ms"
 
 # --- PHASE 4: APPLY IPTABLES RULES ---
+phase4_start_time=$(get_time_ms)
+
 if [ "$DEBUG_MODE" -eq 0 ]; then
     log -p i -t "afwall_custom" "Instance $INSTANCE_ID applying firewall rules..."
     rules_applied=0
-    printf "%s" "$completed_data" | while IFS= read -r record; do
-        if [ -z "$record" ]; then continue; fi
-        uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
+    
+    echo "$completed_data" | while IFS= read -r record; do
+        [ -z "$record" ] && continue
+        uid=$(echo "$record" | awk -F'   ' '{print $1}')
         
         if is_valid_uid "$uid"; then
             for chain in $TARGET_CHAINS; do
@@ -293,27 +374,36 @@ if [ "$DEBUG_MODE" -eq 0 ]; then
             rules_applied=$((rules_applied + 1))
         fi
     done
+    
     log -p i -t "afwall_custom" "Instance $INSTANCE_ID applied rules for $rules_applied UIDs"
+else
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE4] Skipping iptables in debug mode"
 fi
 
+phase4_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE4] Rules application complete. Time: $((phase4_end_time - phase4_start_time)) ms"
+
 # --- PHASE 5: FINAL EXECUTION (File Write & Debug Report) ---
+phase5_start_time=$(get_time_ms)
+
 if [ "$DEBUG_MODE" -eq 1 ]; then
     echo
     echo "[PERFORMANCE REPORT] --- Execution Time per Phase ---"
-    echo "[TIME] Phase 1 (Parse File): $((($phase1_end_time - $phase1_start_time) / 1000000)) ms"
-    echo "[TIME] Phase 2 (Augment Data): $((($phase2_end_time - $phase2_start_time) / 1000000)) ms"
+    echo "[TIME] Phase 1 (Parse File): $((phase1_end_time - phase1_start_time)) ms"
+    echo "[TIME] Phase 2 (Augment Data): $((phase2_end_time - phase2_start_time)) ms"
     if [ "$RECALCULATE_MODE" -eq 1 ]; then
-        echo "[TIME] Phase 3 (Recalculate UIDs): $((($phase3_end_time - $phase3_start_time) / 1000000)) ms"
+        echo "[TIME] Phase 3 (Recalculate UIDs): $((phase3_end_time - phase3_start_time)) ms"
     fi
-    echo "[TIME] Phase 3.5 (Sort Data): $((($sort_end_time - $sort_start_time) / 1000000)) ms"
+    echo "[TIME] Phase 3.5 (Sort Data): $((sort_end_time - sort_start_time)) ms"
+    echo "[TIME] Phase 4 (Apply Rules): $((phase4_end_time - phase4_start_time)) ms"
     
     echo
     echo "[FINAL REPORT] --- Final State of In-Memory Data (Sorted by $SORT_MODE) ---"
-    printf "%s" "$completed_data" | while IFS= read -r record; do
-        if [ -z "$record" ]; then continue; fi
-        uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
-        package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+    echo "$completed_data" | while IFS= read -r record; do
+        [ -z "$record" ] && continue
+        uid=$(echo "$record" | awk -F'   ' '{print $1}')
+        package_name=$(echo "$record" | awk -F'   ' '{print $2}')
+        custom_name=$(echo "$record" | awk -F'   ' '{print $3}')
         echo "UID:[$uid] PKG:[$package_name] NAME:[$custom_name]"
     done
     
@@ -322,25 +412,27 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
     echo "$first_line"
     [ "$RECALCULATE_MODE" -eq 1 ] && echo "recalculate=0" || echo "$second_line"
     echo "$third_line"
-    printf "%s" "$completed_data" | while IFS= read -r record; do
-        if [ -z "$record" ]; then continue; fi
-        uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
-        package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+    echo "$completed_data" | while IFS= read -r record; do
+        [ -z "$record" ] && continue
+        uid=$(echo "$record" | awk -F'   ' '{print $1}')
+        package_name=$(echo "$record" | awk -F'   ' '{print $2}')
+        custom_name=$(echo "$record" | awk -F'   ' '{print $3}')
+        
         if [ -n "$custom_name" ]; then
-            processed_line="$uid $package_name $custom_name"
+            echo "$uid $package_name $custom_name"
+        elif [ -n "$package_name" ]; then
+            echo "$uid $package_name"
         else
-            processed_line="$uid $package_name"
+            echo "$uid"
         fi
-        echo "$processed_line" | sed 's/[[:space:]]*$//'
     done
     
     echo
     echo "[IPTABLES PREVIEW] --- Commands that would be executed ---"
     rule_count=0
-    printf "%s" "$completed_data" | while IFS= read -r record; do
-        if [ -z "$record" ]; then continue; fi
-        uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
+    echo "$completed_data" | while IFS= read -r record; do
+        [ -z "$record" ] && continue
+        uid=$(echo "$record" | awk -F'   ' '{print $1}')
         if is_valid_uid "$uid"; then
             for chain in $TARGET_CHAINS; do
                 echo "$IPTABLES -I \"$chain\" 1 -m owner --uid-owner \"$uid\" -j RETURN"
@@ -350,13 +442,13 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
         fi
     done
     
-    total_end_time=$(date +%s%N)
+    total_end_time=$(get_time_ms)
     echo
     echo "[SUMMARY]"
     echo "- Instance PID: $INSTANCE_ID"
     echo "- Has write lock: $HAS_LOCK"
-    echo "- Total execution time: $((($total_end_time - $total_start_time) / 1000000)) ms"
-    echo "- Valid entries processed: $(echo "$completed_data" | grep -c "$DELIMITER")"
+    echo "- Total execution time: $((total_end_time - total_start_time)) ms"
+    echo "- Valid entries processed: $(echo "$completed_data" | grep -c '   ')"
     
 else
     # --- PRODUCTION MODE: Write file if we have the lock ---
@@ -371,17 +463,19 @@ else
             echo "# Last updated: $(date '+%Y-%m-%d %H:%M:%S')"
             echo "# ============================================"
             
-            printf "%s" "$completed_data" | while IFS= read -r record; do
-                if [ -z "$record" ]; then continue; fi
-                uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
-                package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-                custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+            echo "$completed_data" | while IFS= read -r record; do
+                [ -z "$record" ] && continue
+                uid=$(echo "$record" | awk -F'   ' '{print $1}')
+                package_name=$(echo "$record" | awk -F'   ' '{print $2}')
+                custom_name=$(echo "$record" | awk -F'   ' '{print $3}')
                 
                 if [ -n "$uid" ] || [ -n "$package_name" ]; then
                     if [ -n "$custom_name" ]; then
                         echo "$uid $package_name $custom_name"
-                    else
+                    elif [ -n "$package_name" ]; then
                         echo "$uid $package_name"
+                    else
+                        echo "$uid"
                     fi
                 fi
             done
@@ -398,5 +492,8 @@ else
         log -p i -t "afwall_custom" "Instance $INSTANCE_ID completed (no file write - other instance handles it)"
     fi
 fi
+
+phase5_end_time=$(get_time_ms)
+[ "$DEBUG_MODE" -eq 1 ] && echo "[PHASE5] File write/report complete. Time: $((phase5_end_time - phase5_start_time)) ms"
 
 # Lock cleanup is handled by trap on exit
