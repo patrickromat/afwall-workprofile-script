@@ -1,25 +1,19 @@
-# afwall-workprofile-script
-Script solution for AFWall issue with work profile apps
-Of course. Based on the complete history of our collaboration and the final version of the script you provided, here is the comprehensive README documentation suitable for a GitHub repository.
-
-***
-
 # Advanced AFWall+ Automation Script for Work Profiles
 
 A powerful, self-managing script designed to extend AFWall+ functionality, providing first-class support for Android's Work Profile, dynamic UID management, and robust configuration handling.
 
 ## Table of Contents
-
 1.  [Core Features](#1-core-features)
 2.  [The Problem: Why is This Needed?](#2-the-problem-why-is-this-needed)
 3.  [Prerequisites](#3-prerequisites)
 4.  [Installation: One-Time Setup](#4-installation-one-time-setup)
-5.  [Configuration: The `uid.txt` File](#5-configuration-the-uidtxt-file)
+5.  [Managing Your App List (`uid.txt`)](#5-managing-your-app-list-uidtxt)
+    *   [Recommended Tool: X-plore File Manager](#recommended-tool-x-plore-file-manager)
+    *   [How to Add a New App to the Firewall](#how-to-add-a-new-app-to-the-firewall)
 6.  [Advanced Usage: Backup, Restore & Migration](#6-advanced-usage-backup-restore--migration)
-7.  [Convenience Tip: Homescreen Shortcut](#7-convenience-tip-homescreen-shortcut)
-8.  [Technical Deep Dive: How It Works](#8-technical-deep-dive-how-it-works)
-9.  [Example Configuration Files](#9-example-configuration-files)
-10. [The Final Script: `afw.sh`](#10-the-final-script-afwsh)
+7.  [Technical Deep Dive: How It Works](#7-technical-deep-dive-how-it-works)
+8.  [Example Configuration Files](#8-example-configuration-files)
+9.  [The Final Script: `afw.sh`](#9-the-final-script-afwsh)
 
 ---
 
@@ -48,8 +42,8 @@ This script solves that problem by using the command-line `pm` tool to directly 
 | **Skillset**  | Basic understanding of command-line interfaces (like Termux or ADB).             |
 |             | Familiarity with Android file systems (`/data/`, `/sdcard/`).                    |
 | **Tools**     | A computer with **ADB (Android Debug Bridge)** installed for the one-time setup. |
-|             | A text editor on your Android device (e.g., QuickEdit).                          |
-|             | (Optional) A root-capable file explorer (e.g., MiXplorer).                       |
+|             | A text editor on your Android device (e.g., QuickEdit, X-plore's built-in).      |
+|             | A root-capable file explorer (e.g., MiXplorer, X-plore).                         |
 
 ### 4. Installation: One-Time Setup
 
@@ -62,21 +56,21 @@ Follow these steps carefully to install and configure the script.
     adb shell "mkdir -p /sdcard/afw/"
     ```
 
-3.  **Create the initial configuration file (`uid.txt`)** on your computer. Copy the contents from the [Example Config Files](#9-example-configuration-files) section into a new file named `uid.txt`.
+3.  **Create the configuration file (`uid.txt`)**. Using a text editor on your computer, create a new file named `uid.txt`. Copy the contents from the [Example Configuration Files](#8-example-configuration-files) section into it.
 
 4.  **Push the configuration file** to your device:
     ```bash
     adb push uid.txt /sdcard/afw/
     ```
 
-5.  **Create the script file (`afw.sh`)** on your computer. Copy the entire script from [The Final Script](#10-the-final-script-afwsh) section below into a new file named `afw.sh`.
+5.  **Create the script file (`afw.sh`)**. On your computer, create a new file named `afw.sh`. Copy the entire script from [The Final Script](#9-the-final-script-afwsh) section below into this file.
 
 6.  **Push the script file** to a persistent location on your device. `/data/local/` is a standard choice.
     ```bash
     adb push afw.sh /data/local/afw.sh
     ```
 
-7.  **Make the script executable:**
+7.  **Make the script executable**. This is a critical step.
     ```bash
     adb shell "chmod 755 /data/local/afw.sh"
     ```
@@ -92,20 +86,67 @@ Follow these steps carefully to install and configure the script.
 
 The setup is now complete. Every time you tap "Apply" in AFWall+, the script will execute.
 
-### 5. Configuration: The `uid.txt` File
+### 5. Managing Your App List (`uid.txt`)
 
-This is the only file you will ever need to edit.
+This section explains the day-to-day use of the script: adding new apps to your firewall rules.
 
-*   **Line 1: `debug=0` or `debug=1`**
-    *   `debug=0`: **Normal Operation.** The script runs silently (logging to `logcat`) and makes permanent changes to your firewall and the `uid.txt` file.
-    *   `debug=1`: **Debug Mode.** The script prints detailed reports, execution timers, and previews to the shell (run via `adb shell`). It makes **no changes** to your system.
-*   **Line 2: `recalculate=0` or `recalculate=1`**
-    *   `recalculate=0`: **Normal Operation.** The script trusts existing UIDs and only looks up missing information.
-    *   `recalculate=1`: **Force Recalculation.** On the next run, the script will re-verify the UID for every single package name in the file. It will then automatically reset this value to `0` in the file. This is essential for device migrations (see next section).
-*   **Data Lines (Line 3 onwards):** You can use three formats. The script will automatically organize them.
-    1.  **UID First (Recommended):** `1010384 com.alibaba.aliexpresshd aliexpress app`
-    2.  **Package Name First:** `com.microsoft.emmx Work Profile Edge Browser`
-    3.  **UID or Package Name Only:** `1010411` or `pl.allegro`
+#### Recommended Tool: X-plore File Manager
+
+X-plore is an excellent root file explorer with a built-in text editor, making it a perfect all-in-one tool for this task.
+
+**How to Edit `uid.txt` with X-plore:**
+1.  Open X-plore.
+2.  Navigate to `/sdcard/afw/`.
+3.  Long-press on `uid.txt`.
+4.  From the menu, select **Edit Text**.
+5.  Make your changes and save the file.
+
+**How to Create a Homescreen Shortcut with X-plore:**
+1.  Navigate to `/sdcard/afw/`.
+2.  Long-press on `uid.txt` to select it.
+3.  Tap the **More** button in the action bar at the bottom.
+4.  Choose **Create Shortcut**.
+5.  A shortcut will be placed on your homescreen for one-tap access.
+
+#### How to Add a New App to the Firewall
+
+There are two primary ways to add an app. Using the package name is easiest.
+
+**Method 1: By Package Name (Recommended)**
+
+This is the simplest and most reliable method.
+
+1.  **Find the app's package name.** You have two easy options:
+    *   **From the Play Store:** Open the app's page in the Play Store. Look at the URL in your browser's address bar. The package name is the part after `id=`.
+        *   `.../details?id=**com.google.android.apps.maps**` -> The package name is `com.google.android.apps.maps`.
+    *   **Using an App Manager:** Install a tool like **App Manager** (available on F-Droid) *inside your Work Profile*. Open it, find your app, and its package name will be listed prominently (e.g., `org.videolan.vlc`).
+
+2.  **Edit your `uid.txt` file.**
+3.  Go to a new line and simply type the package name you found. You can add a comment after it.
+    ```
+    com.google.android.apps.maps  # Google Maps in Work Profile
+    ```
+4.  **Save the file.**
+5.  **Apply rules in AFWall+.**
+
+The script will automatically run, see the new package name, find its correct UID, apply the firewall rules, and then rewrite the `uid.txt` file for you, placing the new UID at the start of the line.
+
+**Method 2: By UID (Advanced)**
+
+This method is useful if you prefer to work with UIDs directly.
+
+1.  **Install an App Manager** (like App Manager from F-Droid) *inside your Work Profile*.
+2.  Open App Manager and find the app you want to add.
+3.  Note its **UID** (sometimes called App ID). It will be a number like `1010444`.
+4.  **Edit your `uid.txt` file.**
+5.  Go to a new line and type the UID.
+    ```
+    1010444
+    ```
+6.  **Save the file.**
+7.  **Apply rules in AFWall+.**
+
+The script will run, see the new UID, apply the firewall rules, and then perform a reverse-lookup to find the matching package name, which it will add to the line for you.
 
 ### 6. Advanced Usage: Backup, Restore & Migration
 
@@ -117,69 +158,28 @@ This script makes migrating your firewall rules to a new device or a fresh ROM i
 
 #### Step-by-Step Migration Guide:
 
-1.  **Backup (Old Device):** Save a copy of `/sdcard/afw/uid.txt`. This is your master list.
+1.  **Backup (Old Device):** Save a copy of `/sdcard/afw/uid.txt`.
 2.  **Setup (New Device):** Perform the complete [One-Time Setup](#4-installation-one-time-setup).
-3.  **Restore (New Device):** Copy your backed-up `uid.txt` file to `/sdcard/afw/` on the new device, overwriting the blank one.
-4.  **Activate Recalculation:** Open the restored `uid.txt` file and **change the second line to `recalculate=1`**. Save the file.
+3.  **Restore (New Device):** Copy your backed-up `uid.txt` file to `/sdcard/afw/` on the new device.
+4.  **Activate Recalculation:** Open the restored `uid.txt` file and **change the second line to `recalculate=1`**.
 5.  **Trigger the Script:** Open AFWall+ and tap **"Apply"**.
 
 The script will run, find all the new UIDs for your apps, apply the correct firewall rules, and rewrite the `uid.txt` file with the updated information, automatically setting `recalculate=0` for the next run.
 
-### 7. Convenience Tip: Homescreen Shortcut
+### 7. Technical Deep Dive: How It Works
 
-To make editing your app list easier, create a shortcut to `uid.txt` on your homescreen.
-
-**Example using MiXplorer:**
-
-1.  Navigate to `/sdcard/afw/`.
-2.  Long-press on `uid.txt` to select it.
-3.  Tap the menu (three dots) > **Add to** > **Shortcut**.
-4.  The shortcut will be placed on your homescreen for one-tap access.
-
-### 8. Technical Deep Dive: How It Works
-
-The script operates in distinct phases for stability and performance.
-
-#### Process Flow
-
-```
-        [ START ]
-            |
-            V
-  [ Acquire Lock? ] --(No)--> [ RUN_PARALLEL=true? ] --(No)--> [ EXIT ]
-            |                               |
-           (Yes)                           (Yes)
-            |                               V
-            V                  (Read-Only, No File Write)
-  [ PHASE 1: Parse uid.txt ]
-            |
-            V
-  [ PHASE 2: Augment Data (Fill Blanks) ]
-            |
-            V
-  [ PHASE 3: Recalculate? (If flag=1) ]
-            |
-            V
-  [ PHASE 4: Apply FINAL IPTABLES Rules ]
-            |
-            V
-  [ PHASE 5: Write uid.txt File? ] --(Only if Lock Acquired)
-            |
-            V
-         [ END ]
-```
+The script operates in distinct, sequential phases for stability and performance.
 
 *   **Phase 0: Lock Acquisition:** Atomically creates a lock directory. The first instance to succeed gains write-access.
-*   **Phase 1: Parse:** Reads and parses `uid.txt` into an in-memory structure (UID, package name, comments).
+*   **Phase 1: Parse:** Reads `uid.txt` into an in-memory structure (UID, package name, comments).
 *   **Phase 2: Augment:** Fills in any missing UIDs or package names by querying the `pm` service.
-*   **Phase 3: Recalculate:** If `recalculate=1`, this phase re-queries the UID for every package name, ensuring data is correct for the current system.
+*   **Phase 3: Recalculate:** If `recalculate=1`, this phase re-queries the UID for every package name.
 *   **Phase 4: Apply Rules:** With the final, validated data, it loops through each UID and inserts (`-I`) firewall rules for both IPv4 and IPv6 into the configured `TARGET_CHAINS`.
-*   **Phase 5: Write File:** If the script instance holds the lock, it writes the cleaned-up data back to `uid.txt` and resets the `recalculate` flag if needed.
+*   **Phase 5: Write File:** If the script instance holds the lock, it writes the cleaned-up data back to `uid.txt`.
 
-### 9. Example Configuration Files
+### 8. Example Configuration Files
 
-#### Example `uid.txt`
-
+#### `uid.txt`
 ```
 debug=0
 recalculate=0
