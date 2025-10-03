@@ -18,7 +18,8 @@ Both instances apply firewall rules for redundancy, but only one updates the con
 - **AFWall+ installed** with root granted
 - **Work Profile exists** (via Island, Shelter, or native Dual Apps)
 - **ADB on computer** for initial setup
-- **Root file manager** on device (X-plore recommended)
+- **File manager** on device (X-plore recommended - to create file edit shortcut)
+- **App Manager** installed in work profile to quickly lookup application UID
 
 ### Installation (5 minutes)
 
@@ -94,6 +95,8 @@ The script auto-generates "Spotify" as the name
 1010444 My Special App
 ```
 The script auto-detects the package name
+You can lookup app UID in App Manager application or any other 
+**TIP** Work Profile package UIDs start with 1010 - easy to check if you got correct one
 
 #### Method 4: Complete Entry
 ```
