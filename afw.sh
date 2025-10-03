@@ -16,12 +16,19 @@ TEMP_FILE="/sdcard/afw/uid.txt.tmp" # Temporary file for safe editing
 LOCK_DIR="/sdcard/afw/script.lock" # Lock directory
 TARGET_USER="10"                   # Search ONLY in the Work Profile (user 10)
 DELIMITER='|'                      # Internal separator for in-memory data
+IPTABLES_WAIT=5                    # Wait time for xtables lock (seconds)
 
 # --- Behavior Switches ---
 RUN_PARALLEL=false
 TARGET_CHAINS="afwall-wifi-wan afwall-3g-home afwall-vpn afwall-3g-roam"
 
 # --- SCRIPT START ---
+
+# Check if iptables supports -w flag
+IPTABLES_SUPPORTS_WAIT=false
+if $IPTABLES -w 1 -L -n >/dev/null 2>&1; then
+    IPTABLES_SUPPORTS_WAIT=true
+fi
 
 # Start total timer only if in debug mode
 if [ "$(head -n 1 "$UID_FILE" 2>/dev/null | cut -d'=' -f2)" -eq 1 ]; then
@@ -78,6 +85,11 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
         echo "[LOCK] Lock acquired. This instance will write to file."
     else
         echo "[LOCK-WARN] Another instance is running. This instance will NOT write to file."
+    fi
+    if [ "$IPTABLES_SUPPORTS_WAIT" = "true" ]; then
+        echo "[IPTABLES] iptables supports -w flag (will wait for lock)"
+    else
+        echo "[IPTABLES-WARN] iptables does NOT support -w flag (older version)"
     fi
 fi
 
@@ -167,8 +179,13 @@ if [ "$DEBUG_MODE" -eq 0 ]; then
         uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
         if [ -n "$uid" ]; then
             for chain in $TARGET_CHAINS; do
-                $IPTABLES -I "$chain" -m owner --uid-owner "$uid" -j RETURN
-                $IP6TABLES -I "$chain" -m owner --uid-owner "$uid" -j RETURN
+                if [ "$IPTABLES_SUPPORTS_WAIT" = "true" ]; then
+                    $IPTABLES -w $IPTABLES_WAIT -I "$chain" -m owner --uid-owner "$uid" -j RETURN
+                    $IP6TABLES -w $IPTABLES_WAIT -I "$chain" -m owner --uid-owner "$uid" -j RETURN
+                else
+                    $IPTABLES -I "$chain" -m owner --uid-owner "$uid" -j RETURN
+                    $IP6TABLES -I "$chain" -m owner --uid-owner "$uid" -j RETURN
+                fi
             done
         fi
     done
@@ -202,8 +219,13 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
         if [ -z "$record" ]; then continue; fi; uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
         if [ -n "$uid" ]; then
             for chain in $TARGET_CHAINS; do
-                echo "$IPTABLES -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
-                echo "$IP6TABLES -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
+                if [ "$IPTABLES_SUPPORTS_WAIT" = "true" ]; then
+                    echo "$IPTABLES -w $IPTABLES_WAIT -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
+                    echo "$IP6TABLES -w $IPTABLES_WAIT -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
+                else
+                    echo "$IPTABLES -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
+                    echo "$IP6TABLES -I \"$chain\" -m owner --uid-owner \"$uid\" -j RETURN"
+                fi
             done
         fi
     done
