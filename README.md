@@ -94,9 +94,9 @@ The script auto-generates "Spotify" as the name
 ```
 1010444 My Special App
 ```
-The script auto-detects the package name
-You can lookup app UID in App Manager application or any other 
-**TIP** Work Profile package UIDs start with 1010 - easy to check if you got correct one
+- The script auto-detects the package name
+- You can lookup app UID in App Manager application or any other 
+- **TIP** Work Profile package UIDs start with 1010 - easy to check if you got correct one
 
 #### Method 4: Complete Entry
 ```
