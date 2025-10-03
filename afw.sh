@@ -260,15 +260,16 @@ if [ -n "$completed_data" ]; then
     case "$SORT_MODE" in
         uid)
             # Sort by UID numerically
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t"$DELIMITER" -k1 -n)
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k1,1 -n)
             ;;
         package)
-            # Sort by package name alphabetically
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t"$DELIMITER" -k2)
+            # Sort by package name alphabetically  
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k2,2)
             ;;
         custom|*)
             # Sort by custom name alphabetically (default)
-            sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t"$DELIMITER" -k3)
+            # Use case-insensitive sort for better results
+            sorted_data=$(echo "$completed_data" | grep -v '^$' | LC_ALL=C sort -t "$DELIMITER" -k3,3 -f)
             ;;
     esac
     completed_data="$sorted_data
