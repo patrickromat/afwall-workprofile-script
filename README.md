@@ -1,6 +1,6 @@
-# Advanced AFWall+ Work Profile Automation Script v2.0
+# Advanced AFWall+ Work Profile Automation Script v3.0
 
-A robust, self-managing script that extends AFWall+ with first-class Work Profile support, intelligent parallel execution handling, and automatic app sorting.
+A robust, self-managing script that extends AFWall+ with first-class Work Profile support, intelligent parallel execution handling, and automatic app sorting by custom names.
 
 ## 🚨 Critical Understanding: How AFWall+ Executes Scripts
 
@@ -55,33 +55,33 @@ adb push uid.txt /sdcard/afw/uid.txt
 2. Save the file
 3. **Open AFWall+ and tap Apply**
 
-### Adding Apps - Three Methods
+### Adding Apps - Simple Format
 
-#### Method 1: By Package Name (Recommended)
-```bash
-# Edit /sdcard/afw/uid.txt and add:
-com.spotify.music # Spotify
+The v3.0 format is simpler - no hash symbols needed for custom names!
 
-# Then tap Apply in AFWall+
+#### Method 1: Package Name + Custom Name (Recommended)
 ```
-The script auto-detects the UID and sorts by your comment.
-
-#### Method 2: By UID
-```bash
-# Find UID in App Manager (Work Profile), then add:
-1010444 # App name
-
-# Then tap Apply in AFWall+
+com.spotify.music Spotify Music Player
 ```
-The script auto-detects the package name.
+The script auto-detects the UID and sorts by "Spotify Music Player"
 
-#### Method 3: Complete Entry
-```bash
-# Add both if known:
-1010444 com.spotify.music # Spotify Music Player
-
-# Then tap Apply in AFWall+
+#### Method 2: Just Package Name
 ```
+com.spotify.music
+```
+The script auto-generates "Spotify" as the name
+
+#### Method 3: UID + Custom Name
+```
+1010444 My Special App
+```
+The script auto-detects the package name
+
+#### Method 4: Complete Entry
+```
+1010444 com.spotify.music Spotify Premium
+```
+Everything after the package is treated as the custom name
 
 ### Using X-plore File Manager
 
@@ -91,45 +91,45 @@ The script auto-detects the package name.
 3. Select **Create Shortcut** for homescreen access
 4. Edit anytime: Long-press → **Edit Text**
 
-## 🎯 New Features in v2.0
+## 🎯 New in Version 3.0
 
-### Automatic Sorting
-Your apps are automatically sorted by the method you choose:
-- **By name** (default): Alphabetical by comment/app name
-- **By package**: Alphabetical by package name  
-- **By uid**: Numerical by UID value
+### Simplified Custom Names
+- **No more hash symbols** - just write the name directly
+- **Everything after package/UID** is the custom name
+- **Clean, readable format** without comment syntax
+- **Natural sorting** by your custom names
+
+### Automatic Sorting Options
+Your apps are automatically sorted by:
+- **custom** (default): Alphabetical by your custom names
+- **package**: Alphabetical by package name  
+- **uid**: Numerical by UID value
 
 Change sorting in uid.txt line 3:
 ```
-sort_by=name    # or 'uid' or 'package'
+sort_by=custom    # Default - sorts by your custom names
 ```
 
-### Enhanced Lock Management
+### Enhanced Features (from v2.0)
 - **Smart parallel handling**: Both AFWall+ instances work together
 - **Stale lock cleanup**: Auto-removes dead locks after 5 minutes
 - **PID validation**: Verifies lock owner is still running
-- **Race condition prevention**: Atomic operations throughout
-
-### Improved Robustness
 - **UID validation**: Only valid numeric UIDs are used
-- **Safe delimiter**: Uses `§` to avoid conflicts
-- **Error handling**: Graceful failures with logging
-- **Auto-comments**: Generates names from package if missing
+- **Safe delimiter**: Uses `§` internally to avoid conflicts
 
 ## 🔧 Configuration File Structure
 
-### /sdcard/afw/uid.txt
-```bash
-debug=0                          # 0=production, 1=verbose debug
-recalculate=0                    # 0=normal, 1=refresh all UIDs
-sort_by=name                     # name/package/uid
-# ============================================
-# Your apps below (auto-sorted on save)
-# ============================================
-com.android.chrome               # Chrome Browser
-1010211 com.whatsapp            # WhatsApp
-com.spotify.music                # Spotify
-1010150                          # Auto-detected app
+### /sdcard/afw/uid.txt Format
+```
+debug=0                          # Production mode
+recalculate=0                    # Normal operation
+sort_by=custom                   # Sort by custom names
+
+# Your apps (no # needed for names!)
+com.android.chrome Chrome Browser
+com.whatsapp WhatsApp Messenger
+com.spotify.music Spotify Music Player
+1010150 Auto-Detected App Name
 ```
 
 ### Configuration Options
@@ -138,7 +138,7 @@ com.spotify.music                # Spotify
 |------|---------|--------|-------------|
 | 1 | `debug` | `0` or `1` | Enable verbose logging |
 | 2 | `recalculate` | `0` or `1` | Force UID refresh (for migrations) |
-| 3 | `sort_by` | `name`, `package`, `uid` | Automatic sorting method |
+| 3 | `sort_by` | `custom`, `package`, `uid` | Automatic sorting method |
 
 ## 🔄 Understanding Script Execution
 
@@ -214,7 +214,7 @@ adb shell "pm list users"
 2. **Configuration Parse** - Read uid.txt into memory
 3. **Data Augmentation** - Query missing UIDs/packages via `pm`
 4. **Recalculation** - Refresh UIDs if migration mode enabled
-5. **Sorting** - Order entries by chosen method
+5. **Sorting** - Order entries by chosen method (default: custom names)
 6. **Rule Application** - Insert iptables rules (both instances)
 7. **File Update** - Write sorted, complete data (lock holder only)
 
@@ -246,33 +246,55 @@ adb shell "pm list users"
 ```
 debug=0
 recalculate=0
-sort_by=name
-com.android.chrome
-com.spotify.music
+sort_by=custom
+com.android.chrome Chrome
+com.spotify.music Spotify
 ```
 
-### Complete Setup with Comments
+### Complete Setup with Custom Names
 ```
 debug=0
 recalculate=0
-sort_by=name
-# Browsers
-1010201 com.android.chrome # Chrome Browser
-1010202 com.microsoft.emmx # Microsoft Edge
+sort_by=custom
+
+# Browsers (comment lines still work with #)
+1010201 com.android.chrome Chrome Browser
+1010202 com.microsoft.emmx Microsoft Edge Browser
+
 # Communication  
-1010211 com.whatsapp # WhatsApp Messenger
-1010212 org.telegram.messenger # Telegram
+com.whatsapp WhatsApp Messenger
+org.telegram.messenger Telegram Chat
+
 # Work Apps
-com.slack # Slack (UID auto-detected)
-com.zoom.videomeetings # Zoom Meetings
+com.slack Slack for Work
+com.zoom.videomeetings Zoom Video Meetings
 ```
 
-### Debug Mode for Troubleshooting
+### Migration Mode
 ```
-debug=1
-recalculate=0
-sort_by=uid
-# Your apps here
+debug=0
+recalculate=1
+sort_by=custom
+# Your apps with custom names
+com.android.chrome Chrome Browser
+com.spotify.music Spotify Premium
+```
+
+## 🆚 Version Comparison
+
+### What's Changed from v2.0 to v3.0
+- **Removed hash symbols** from custom names
+- **Direct string format** for names (cleaner, more intuitive)
+- **Default sort changed** from `name` to `custom`
+- **Simplified parsing** - everything after package/UID is the name
+
+### Example Format Comparison
+```
+# v2.0 format:
+com.spotify.music # Spotify Music
+
+# v3.0 format:
+com.spotify.music Spotify Music
 ```
 
 ## 🤝 Support
@@ -284,7 +306,7 @@ sort_by=uid
 
 ## 📄 License
 
-This project is released into the public domain. Use, modify, and distribute freely.
+This project is released under the MIT License. Use, modify, and distribute freely.
 
 ## 🙏 Acknowledgments
 
@@ -293,4 +315,4 @@ This project is released into the public domain. Use, modify, and distribute fre
 - Contributors and testers
 
 ---
-*Version 2.0 - Enhanced parallel execution, sorting, and robustness*
+*Version 3.0 - Simplified custom names, cleaner format, better user experience*

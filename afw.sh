@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-# AFWall+ Work Profile Automation Script v2.0
+# AFWall+ Work Profile Automation Script v3.0
 # ============================================
 # IMPORTANT: AFWall+ launches TWO instances of this script in parallel
 # The locking mechanism ensures only one writes to file while both apply rules
@@ -12,7 +12,7 @@
 # Configuration file: /sdcard/afw/uid.txt
 #   Line 1: debug=0 (or debug=1 for verbose output)
 #   Line 2: recalculate=0 (or recalculate=1 to refresh all UIDs)
-#   Line 3: sort_by=name (or sort_by=uid or sort_by=package)
+#   Line 3: sort_by=custom (or sort_by=uid or sort_by=package)
 #   Line 4+: Your app entries
 
 # --- CONFIGURATION ---
@@ -87,7 +87,7 @@ fi
 # 1. PRE-RUN CHECKS AND MODE DETECTION
 DEBUG_MODE=0
 RECALCULATE_MODE=0
-SORT_MODE="name"  # Default sort by name/comment
+SORT_MODE="custom"  # Default sort by custom name
 
 if [ ! -f "$UID_FILE" ]; then
     if [ "$DEBUG_MODE" -eq 1 ]; then
@@ -116,8 +116,8 @@ if [ "$(echo "$third_line" | cut -d'=' -f1)" = "sort_by" ]; then
     SORT_MODE=$(echo "$third_line" | cut -d'=' -f2)
     # Validate sort mode
     case "$SORT_MODE" in
-        uid|package|name) ;;
-        *) SORT_MODE="name" ;;
+        uid|package|custom) ;;
+        *) SORT_MODE="custom" ;;
     esac
 fi
 
@@ -147,35 +147,41 @@ config_line_count=3  # Skip first 3 config lines
 while IFS= read -r line || [ -n "$line" ]; do
     line_counter=$((line_counter + 1))
     if [ "$line_counter" -le "$config_line_count" ]; then continue; fi
-    if [ -z "$line" ] || [ "$(echo "$line" | cut -c1)" = "#" ]; then continue; fi
+    # Skip empty lines and pure comment lines
+    if [ -z "$line" ] || [ "$(echo "$line" | grep -c '^[[:space:]]*#')" -eq 1 ]; then continue; fi
     
-    # More robust parsing
+    # Parse the line - everything after package/UID is the custom name
     item1=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]].*//')
     rest_of_line=$(echo "$line" | sed "s/^[[:space:]]*$item1[[:space:]]*//")
-    item2=$(echo "$rest_of_line" | sed 's/^[[:space:]]*//;s/[[:space:]].*//')
     
-    uid=""; package_name=""; comments=""
+    uid=""; package_name=""; custom_name=""
     
     # Check if item1 is a UID (all digits)
     if [ -z "$(echo "$item1" | tr -d '0-9')" ] && [ -n "$item1" ]; then
         uid="$item1"
+        # Check if next item is a package name
+        item2=$(echo "$rest_of_line" | sed 's/^[[:space:]]*//;s/[[:space:]].*//')
         if [ -n "$item2" ] && echo "$item2" | grep -q "\."; then
             package_name="$item2"
-            comments=$(echo "$rest_of_line" | sed "s/^[[:space:]]*$item2[[:space:]]*//")
+            # Everything after package is the custom name
+            custom_name=$(echo "$rest_of_line" | sed "s/^[[:space:]]*$item2[[:space:]]*//")
         else
-            comments="$rest_of_line"
+            # Everything after UID is the custom name
+            custom_name="$rest_of_line"
         fi
     elif echo "$item1" | grep -q "\."; then
+        # First item is a package name
         package_name="$item1"
-        comments="$rest_of_line"
+        # Everything after is the custom name
+        custom_name="$rest_of_line"
     else
         continue
     fi
     
-    # Clean up comments
-    comments=$(echo "$comments" | sed 's/^[[:space:]]*#*[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    # Clean up custom name - just trim whitespace, no comment removal
+    custom_name=$(echo "$custom_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     
-    record="$uid$DELIMITER$package_name$DELIMITER$comments"
+    record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
     accumulated_data="$accumulated_data$record
 "
 done < "$UID_FILE"
@@ -188,7 +194,7 @@ while IFS= read -r record; do
     if [ -z "$record" ]; then continue; fi
     uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
     package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-    comment=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+    custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
     
     if [ -z "$uid" ] && [ -n "$package_name" ]; then
         # Try to get UID from package name
@@ -206,15 +212,15 @@ while IFS= read -r record; do
         fi
     fi
     
-    # Generate a default comment if empty
-    if [ -z "$comment" ] && [ -n "$package_name" ]; then
+    # Generate a default custom name if empty
+    if [ -z "$custom_name" ] && [ -n "$package_name" ]; then
         # Extract app name from package (last component)
         app_name=$(echo "$package_name" | rev | cut -d'.' -f1 | rev)
         # Capitalize first letter
-        comment=$(echo "$app_name" | sed 's/^./\U&/')
+        custom_name=$(echo "$app_name" | sed 's/^./\U&/')
     fi
     
-    new_record="$uid$DELIMITER$package_name$DELIMITER$comment"
+    new_record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
     completed_data="$completed_data$new_record
 "
 done <<< "$accumulated_data"
@@ -228,7 +234,7 @@ if [ "$RECALCULATE_MODE" -eq 1 ]; then
         if [ -z "$record" ]; then continue; fi
         uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
         package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        comment=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
         
         if [ -n "$package_name" ]; then
             output=$(pm list packages --user "$TARGET_USER" -U 2>/dev/null | grep -w "$package_name")
@@ -239,7 +245,7 @@ if [ "$RECALCULATE_MODE" -eq 1 ]; then
                 fi
             fi
         fi
-        new_record="$uid$DELIMITER$package_name$DELIMITER$comment"
+        new_record="$uid$DELIMITER$package_name$DELIMITER$custom_name"
         recalculated_data="$recalculated_data$new_record
 "
     done <<< "$completed_data"
@@ -259,8 +265,8 @@ if [ -n "$completed_data" ]; then
             # Sort by package name alphabetically
             sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t"$DELIMITER" -k2)
             ;;
-        name|*)
-            # Sort by comment/name alphabetically (default)
+        custom|*)
+            # Sort by custom name alphabetically (default)
             sorted_data=$(echo "$completed_data" | grep -v '^$' | sort -t"$DELIMITER" -k3)
             ;;
     esac
@@ -305,8 +311,8 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
         if [ -z "$record" ]; then continue; fi
         uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
         package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        comment=$(echo "$record" | cut -d"$DELIMITER" -f3-)
-        echo "UID:[$uid] PKG:[$package_name] NAME:[$comment]"
+        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+        echo "UID:[$uid] PKG:[$package_name] NAME:[$custom_name]"
     done
     
     echo
@@ -318,9 +324,9 @@ if [ "$DEBUG_MODE" -eq 1 ]; then
         if [ -z "$record" ]; then continue; fi
         uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
         package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-        comment=$(echo "$record" | cut -d"$DELIMITER" -f3-)
-        if [ -n "$comment" ]; then
-            processed_line="$uid $package_name # $comment"
+        custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+        if [ -n "$custom_name" ]; then
+            processed_line="$uid $package_name $custom_name"
         else
             processed_line="$uid $package_name"
         fi
@@ -367,11 +373,11 @@ else
                 if [ -z "$record" ]; then continue; fi
                 uid=$(echo "$record" | cut -d"$DELIMITER" -f1)
                 package_name=$(echo "$record" | cut -d"$DELIMITER" -f2)
-                comment=$(echo "$record" | cut -d"$DELIMITER" -f3-)
+                custom_name=$(echo "$record" | cut -d"$DELIMITER" -f3-)
                 
                 if [ -n "$uid" ] || [ -n "$package_name" ]; then
-                    if [ -n "$comment" ]; then
-                        echo "$uid $package_name # $comment"
+                    if [ -n "$custom_name" ]; then
+                        echo "$uid $package_name $custom_name"
                     else
                         echo "$uid $package_name"
                     fi

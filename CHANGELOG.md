@@ -1,6 +1,29 @@
 # Changelog
 
-## Version 2.0 (Current)
+## Version 3.0 (Latest)
+
+### 🎯 Major Changes
+- **Simplified Custom Names**: Removed hash symbol requirement - custom names are now plain strings
+- **Cleaner Format**: Everything after package/UID is treated as the custom name
+- **Default Sort Changed**: Now defaults to `sort_by=custom` instead of `sort_by=name`
+- **More Intuitive**: Natural format without comment syntax
+
+### 📝 Format Changes
+```
+# Old v2.0 format:
+com.spotify.music # Spotify Music
+
+# New v3.0 format:
+com.spotify.music Spotify Music
+```
+
+### 🔧 Technical Improvements
+- Simplified parsing logic for custom names
+- No comment removal needed for names
+- Cleaner file output without hash symbols
+- Maintains all v2.0 robustness features
+
+## Version 2.0
 
 ### 🎯 Major Features
 - **Parallel Execution Handling**: Properly manages AFWall+'s dual script instances
@@ -45,7 +68,33 @@
 
 ## Upgrade Instructions
 
-### From v1.0 to v2.0
+### From v2.0 to v3.0
+
+1. **Backup current config**:
+   ```bash
+   adb pull /sdcard/afw/uid.txt uid_backup.txt
+   ```
+
+2. **Update script**:
+   ```bash
+   adb push afw.sh /data/local/afw.sh
+   adb shell "chmod 755 /data/local/afw.sh"
+   ```
+
+3. **Update config file format**:
+   - Change `sort_by=name` to `sort_by=custom` (line 3)
+   - Remove `#` symbols from custom names
+   - Example: `com.spotify.music # Spotify` becomes `com.spotify.music Spotify`
+
+4. **Apply changes**:
+   - Open AFWall+ and tap Apply
+
+5. **Verify**:
+   ```bash
+   adb shell "logcat -d | grep afwall_custom"
+   ```
+
+### From v1.0 to v3.0
 
 1. **Backup current config**:
    ```bash
@@ -59,8 +108,9 @@
    ```
 
 3. **Update config file**:
-   - Add `sort_by=name` as line 3
+   - Add `sort_by=custom` as line 3
    - Shift all app entries down one line
+   - Update format to remove `#` symbols
 
 4. **Apply changes**:
    - Open AFWall+ and tap Apply
